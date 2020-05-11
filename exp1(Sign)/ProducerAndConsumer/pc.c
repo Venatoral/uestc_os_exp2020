@@ -4,29 +4,41 @@
 #include <pthread.h>
 #include <semaphore.h>
 
-#define PRODUCER_NUM 10
-#define CONSUMER_NUM 5
+#define PRODUCER_NUM 3
+#define CONSUMER_NUM 4
 
-#define FOOD_NUM 20
+#define BUF_SIZE 10
+#define SOURCE_FILE "sources.txt"
+
+FILE* f;
 
 sem_t empty;
 sem_t full;
+pthread_mutex_t p;
+pthread_mutex_t c;
 
+int producerPtr = 0;
+int consumePtr = 0;
+
+char* buf[BUF_SIZE];
 void randSleep() {
     sleep( rand() % 5);
 }
 void consume(void* param) {
     int n = (int)param;
     while(1) {
-        printf("Consumer.%d start consume\n", n);
+        pthread_mutex_lock(&c);
         // get resources empty --
-        sem_wait(&empty);
+        sem_wait(&full);
+
+        int pos = consumePtr % BUF_SIZE;
+        char* source = buf[pos];
+        consumePtr++;
         // add 1 full postion
-        sem_post(&full);
+        sem_post(&empty);
         // show info
-        int value = 0;
-        sem_getvalue(&empty, &value);
-        printf("Consumer.%d finish consuming => %d food left\n", n, value);
+        printf("Consumer %d take product %s in position %d\n", n, source, pos);
+        pthread_mutex_unlock(&c);
         randSleep();
     }
 }
@@ -34,26 +46,49 @@ void consume(void* param) {
 void produce(void* param) {
     int n = (int)param;
     while(1) {
-        printf("Producer.%d start produce\n", n);
-        sem_wait(&full);
-        sem_post(&empty);
-        int value = 0;
-        sem_getvalue(&empty, &value);
-        printf("Producer.%d produce 1 food => %d food\n", n, value);
-        randSleep();
+        pthread_mutex_lock(&p);
+        sem_wait(&empty);
+
+        char source[32];
+        // after reading file, have no source to produce
+        if( feof(f))
+            fseek(f, 0, SEEK_SET);
+        fscanf(f, "%s\n", source);
+        int pos = producerPtr % BUF_SIZE;
+        buf[pos] = source;
+        producerPtr ++;
+
+        sem_post(&full);
+
+        printf("Producer %d produce %s in position %d\n", n, source, pos);
+        pthread_mutex_unlock(&p);
+        sleep(2);
     }
 }
 
 int main() {
     // for randSleep()
     srand((unsigned)time(NULL));
-    // init empty $FOOD_NUM
-    if ( sem_init(&empty, 0, FOOD_NUM) == -1 ) {
+    if( !( f = fopen(SOURCE_FILE, "r") ) ) {
+        perror("fopen");
+        exit(EXIT_FAILURE);
+    }
+    //init mutex
+    if ( pthread_mutex_init(&p, NULL) == -1 ) {
+        perror("pthread_mutex_init");
+        exit(EXIT_FAILURE);
+    }
+    if (pthread_mutex_init(&c, NULL) == -1) {
+        perror("pthread_mutex_init");
+        exit(EXIT_FAILURE);
+    }
+    // init empty $BUF_SIZE
+    if ( sem_init(&empty, 0, BUF_SIZE) == -1 ) {
         perror("sem_init");
         exit(EXIT_FAILURE);
     }
     // init full 0
-    if (sem_init(&full, 0, 0) == -1) {
+    if ( sem_init(&full, 0, 0) == -1) {
         perror("sem_init");
         exit(EXIT_FAILURE);
     }

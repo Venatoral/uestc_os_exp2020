@@ -14,8 +14,7 @@ FILE* f;
 
 sem_t empty;
 sem_t full;
-pthread_mutex_t p;
-pthread_mutex_t c;
+pthread_mutex_t m;
 
 int producerPtr = 0;
 int consumePtr = 0;
@@ -27,9 +26,9 @@ void randSleep() {
 void consume(void* param) {
     int n = (int)param;
     while(1) {
-        pthread_mutex_lock(&c);
         // get resources empty --
         sem_wait(&full);
+        pthread_mutex_lock(&m);
 
         int pos = consumePtr % BUF_SIZE;
         char* source = buf[pos];
@@ -38,7 +37,7 @@ void consume(void* param) {
         sem_post(&empty);
         // show info
         printf("Consumer %d take product %s in position %d\n", n, source, pos);
-        pthread_mutex_unlock(&c);
+        pthread_mutex_unlock(&m);
         randSleep();
     }
 }
@@ -46,8 +45,8 @@ void consume(void* param) {
 void produce(void* param) {
     int n = (int)param;
     while(1) {
-        pthread_mutex_lock(&p);
         sem_wait(&empty);
+        pthread_mutex_lock(&m);
 
         char source[32];
         // after reading file, have no source to produce
@@ -61,7 +60,7 @@ void produce(void* param) {
         sem_post(&full);
 
         printf("Producer %d produce %s in position %d\n", n, source, pos);
-        pthread_mutex_unlock(&p);
+        pthread_mutex_unlock(&m);
         sleep(2);
     }
 }
@@ -74,11 +73,7 @@ int main() {
         exit(EXIT_FAILURE);
     }
     //init mutex
-    if ( pthread_mutex_init(&p, NULL) == -1 ) {
-        perror("pthread_mutex_init");
-        exit(EXIT_FAILURE);
-    }
-    if (pthread_mutex_init(&c, NULL) == -1) {
+    if (pthread_mutex_init(&m, NULL) == -1) {
         perror("pthread_mutex_init");
         exit(EXIT_FAILURE);
     }

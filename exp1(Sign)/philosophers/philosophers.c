@@ -41,7 +41,7 @@ void eat(int num) {
         pthread_mutex_unlock(chopstick + wantChops[1]);
         printf("%d finish eatting\n", num);
         //冷静下
-        //think();
+        think();
     }
 }
 int main() {
